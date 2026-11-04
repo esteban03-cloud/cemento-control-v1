@@ -359,6 +359,8 @@ router.post('/settings/reset-database', requireAdmin, asyncRoute(async (req, res
     db.exec('PRAGMA foreign_keys = ON;');
   }
 
+  saveConfig({ openingBalances: { cash: 0, bank: 0, capital: 0 } });
+
   logActivity(req.user, 'restablecer', 'sistema', 0, `Base de datos restablecida en blanco. Copia preventiva: ${backup.filename}`);
   res.json({
     ok: true,
