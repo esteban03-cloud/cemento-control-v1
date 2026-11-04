@@ -126,7 +126,7 @@ export default function FinanceExtra({ mode }) {
   const debtColumns = [
     { key: 'creditor_name', label: 'Acreedor', render: (row) => <div><strong>{row.creditor_name}</strong><small>{row.creditor_type === 'banco' ? 'Bancaria' : 'Personal'}</small></div> },
     { key: 'principal', label: 'Capital', align: 'right', render: (row) => money(row.principal) },
-    { key: 'monthly_interest_rate', label: 'Interés mensual', align: 'right', render: (row) => `${Number(row.monthly_interest_rate).toFixed(2)}%` },
+    { key: 'monthly_interest_rate', label: 'Interés mensual', align: 'right', render: (row) => `${(Number(row.monthly_interest_rate) * 100).toFixed(2)}%` },
     { key: 'next_due_date', label: 'Próximo pago', render: (row) => formatDate(row.next_due_date) },
     { key: 'pending_balance', label: 'Capital pendiente', align: 'right', render: (row) => money(row.pending_balance) },
     { key: 'status', label: 'Estado', render: (row) => <StatusBadge status={row.status === 'activa' ? 'Activa' : 'Pagada'} /> },
