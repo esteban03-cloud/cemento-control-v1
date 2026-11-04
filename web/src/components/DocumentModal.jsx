@@ -233,13 +233,13 @@ export function DocumentItems({ columns = [], rows = [], totalRow }) {
     <div className="document-table-wrap">
       <table className="document-table">
         <thead>
-          <tr>{columns.map((column) => <th key={column.key} className={column.align ? `align-${column.align}` : ''}>{column.label}</th>)}</tr>
+          <tr>{columns.map((column) => <th key={column.key} className={classNames(column.className, column.align ? `align-${column.align}` : '')}>{column.label}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id || index}>
               {columns.map((column) => (
-                <td key={column.key} className={column.align ? `align-${column.align}` : ''}>
+                <td key={column.key} className={classNames(column.className, column.align ? `align-${column.align}` : '')}>
                   {column.render ? column.render(row) : row[column.key]}
                 </td>
               ))}
