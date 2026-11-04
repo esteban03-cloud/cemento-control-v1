@@ -516,7 +516,8 @@ export function listDebts(filters = {}) {
       (SELECT COUNT(*) FROM debt_installments di WHERE di.debt_id = d.id) AS installment_count,
       (SELECT COUNT(*) FROM debt_installments di WHERE di.debt_id = d.id AND di.paid_amount >= di.total_amount - 0.5) AS paid_count,
       (SELECT MIN(di.due_date) FROM debt_installments di WHERE di.debt_id = d.id AND di.paid_amount < di.total_amount - 0.5) AS next_due_date,
-      COALESCE((SELECT SUM(dp.amount) FROM debt_payments dp WHERE dp.debt_id = d.id), 0) AS total_paid
+      COALESCE((SELECT SUM(dp.amount) FROM debt_payments dp WHERE dp.debt_id = d.id), 0) AS total_paid,
+      COALESCE((SELECT SUM(dp.principal_paid) FROM debt_payments dp WHERE dp.debt_id = d.id), 0) AS principal_paid
     FROM debts d ${where}
     ORDER BY CASE WHEN d.status = 'activa' THEN 0 ELSE 1 END, d.created_at DESC
   `).all(...params);
@@ -526,9 +527,10 @@ export function listDebts(filters = {}) {
     monthly_interest_rate: Number(row.monthly_interest_rate),
     installment_amount: money(row.installment_amount),
     total_paid: money(row.total_paid),
+    principal_paid: money(row.principal_paid),
     paid_count: Number(row.paid_count),
     installment_count: Number(row.installment_count),
-    pending_balance: money(row.principal - Math.min(row.principal, Number(row.total_paid || 0)))
+    pending_balance: money(row.principal - Math.min(row.principal, Number(row.principal_paid || 0)))
   }));
   return {
     data,
@@ -537,7 +539,7 @@ export function listDebts(filters = {}) {
       active: data.filter((row) => row.status === 'activa').length,
       principal: money(sumRows(data, 'principal')),
       totalPaid: money(sumRows(data, 'total_paid')),
-      monthlyInterest: money(data.filter((row) => row.status === 'activa').reduce((total, row) => total + row.principal * row.monthly_interest_rate, 0)),
+      monthlyInterest: money(data.filter((row) => row.status === 'activa').reduce((total, row) => total + row.pending_balance * row.monthly_interest_rate, 0)),
       nextDue: data.filter((row) => row.next_due_date).sort((a, b) => a.next_due_date.localeCompare(b.next_due_date))[0]?.next_due_date || null
     }
   };

@@ -480,8 +480,8 @@ export function getPurchaseById(id) {
     SELECT p.*, s.name AS supplier_name, s.nit AS supplier_nit, s.phone AS supplier_phone,
       pr.code AS product_code, pr.name AS product_name, pr.unit AS product_unit,
       u.full_name AS created_by_name,
-      COALESCE((SELECT SUM(amount) FROM accounts_payable WHERE purchase_id = p.id), 0) AS credit_total,
-      COALESCE((SELECT SUM(paid) FROM accounts_payable WHERE purchase_id = p.id), 0) AS credit_paid
+      COALESCE((SELECT SUM(amount) FROM accounts_payable WHERE purchase_id = p.id AND concept IN ('producto', 'flete')), 0) AS credit_total,
+      COALESCE((SELECT SUM(paid) FROM accounts_payable WHERE purchase_id = p.id AND concept IN ('producto', 'flete')), 0) AS credit_paid
     FROM purchases p
     JOIN suppliers s ON s.id = p.supplier_id
     JOIN products pr ON pr.id = p.product_id
@@ -489,8 +489,12 @@ export function getPurchaseById(id) {
     WHERE p.id = ?
   `).get(id);
   if (!row) return null;
-  const paid = money(row.total_paid_at_creation + row.credit_paid);
-  const balance = money(row.total_cost - paid);
+  const invoiceTotal = money(
+    Number(row.quantity) * Number(row.unit_cost)
+    + (row.freight_payer !== 'proveedor' ? Number(row.freight_value || 0) : 0)
+  );
+  const paid = money(Number(row.initial_payment || 0) + Number(row.freight_advance || 0) + Number(row.credit_paid || 0));
+  const balance = money(invoiceTotal - paid);
   const today = todayBogota();
   let status = 'Pagada';
   if (balance > 0.5) {
@@ -498,6 +502,7 @@ export function getPurchaseById(id) {
   }
   return {
     ...row,
+    invoice_total: invoiceTotal,
     paid_total: paid,
     balance,
     status,

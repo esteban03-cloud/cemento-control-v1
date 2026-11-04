@@ -12,6 +12,8 @@ import {
   ClipboardList,
   Database,
   FileBarChart,
+  FileText,
+  Landmark,
   HandCoins,
   LayoutDashboard,
   LogOut,
@@ -57,6 +59,9 @@ const NAV_GROUPS = [
       { to: '/caja', label: 'Caja y bancos', icon: WalletCards, permission: 'caja:view' },
       { to: '/cxc', label: 'Cuentas por cobrar', icon: HandCoins, permission: 'cxc:view' },
       { to: '/cxp', label: 'Cuentas por pagar', icon: Banknote, permission: 'cxp:view' },
+      { to: '/prestamos', label: 'Préstamos', icon: HandCoins, permission: 'prestamos:view' },
+      { to: '/deudas', label: 'Deudas', icon: Landmark, permission: 'deudas:view' },
+      { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText, permission: 'cotizaciones:view' },
       { to: '/cartera', label: 'Cartera y flujo', icon: ChartNoAxesCombined, permission: 'cartera:view' }
     ]
   },

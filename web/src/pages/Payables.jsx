@@ -7,6 +7,8 @@ import {
   Eye,
   Landmark,
   Plus,
+  Pencil,
+  Trash2,
   Search,
   Truck
 } from 'lucide-react';
@@ -16,6 +18,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { PageHeader, DataTable, Pagination, SummaryTile, StatusBadge, ErrorPanel, DownloadMenu, IconButton, Avatar } from '../components/DataDisplay.jsx';
 import { DocumentModal, DocumentItems, DocumentTotals, DocumentPayments } from '../components/DocumentModal.jsx';
 import PaymentModal from '../components/PaymentModal.jsx';
+import { Modal } from '../components/Modal.jsx';
+import { Field, TextInput } from '../components/Forms.jsx';
 import {
   classNames,
   conceptLabel,
@@ -46,6 +50,9 @@ export default function Payables() {
   const toast = useToast();
   const [status, setStatus] = useState('todas');
   const [concept, setConcept] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('oldest');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -54,7 +61,11 @@ export default function Payables() {
   const [error, setError] = useState(null);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [dueDateTarget, setDueDateTarget] = useState(null);
+  const [dueDateValue, setDueDateValue] = useState('');
   const canPay = hasPermission('cxp:pay');
+  const canDelete = hasPermission('compras:write');
   const canExport = hasPermission('reportes:export');
 
   useEffect(() => {
@@ -66,7 +77,9 @@ export default function Payables() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ status, page: String(page), limit: '20' });
+      const params = new URLSearchParams({ status, page: String(page), limit: '20', sort });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
       if (concept) params.set('concept', concept);
       if (search) params.set('search', search);
       setData(await api.get(`/payables?${params.toString()}`));
@@ -77,7 +90,7 @@ export default function Payables() {
     }
   };
 
-  useEffect(() => { load(); }, [status, concept, search, page]);
+  useEffect(() => { load(); }, [status, concept, search, page, from, to, sort]);
 
   const openDetail = async (row) => {
     try {
@@ -86,6 +99,49 @@ export default function Payables() {
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  const refreshDetail = async () => {
+    if (!detail) return;
+    try {
+      const response = await api.get(`/payables/${detail.id}/payments`);
+      setDetail(response.data);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayment = async (payment) => {
+    if (!detail || !window.confirm('¿Eliminar este pago? El saldo y los movimientos de caja se recalcularán.')) return;
+    try {
+      await api.delete(`/payables/${detail.id}/payments/${payment.id}`);
+      toast.success('Pago eliminado y caja recalculada.');
+      await refreshDetail();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const saveDueDate = async (event) => {
+    event.preventDefault();
+    if (!dueDateTarget || !dueDateValue) return;
+    try {
+      await api.put(`/payables/${dueDateTarget.id}`, { due_date: dueDateValue });
+      toast.success('Fecha de vencimiento actualizada.');
+      setDueDateTarget(null);
+      await load(true);
+      if (detail?.id === dueDateTarget.id) {
+        const response = await api.get(`/payables/${detail.id}/payments`);
+        setDetail(response.data);
+      }
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayable = async (row) => {
+    if (!window.confirm(`¿Eliminar esta obligación de ${row.provider_name}? Se revertirán los pagos y movimientos relacionados si el registro proviene de una compra.`)) return;
+    try {
+      await api.delete(`/payables/${row.id}`);
+      toast.success('Cuenta por pagar eliminada.');
+      if (detail?.id === row.id) setDetail(null);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [
@@ -142,6 +198,8 @@ export default function Payables() {
       render: (row) => (
         <div className="row-actions">
           <IconButton label="Ver obligación" icon={Eye} onClick={() => openDetail(row)} />
+          {canPay && <IconButton label="Editar vencimiento" icon={Pencil} onClick={() => { setDueDateTarget(row); setDueDateValue(row.due_date); }} />}
+          {canDelete && <IconButton label="Eliminar obligación" icon={Trash2} variant="danger" onClick={() => deletePayable(row)} />}
           {canPay && row.balance > 0 && (
             <button type="button" className="btn btn-small btn-secondary" onClick={() => setPaymentTarget(row)}>
               <Plus size={14} /> Pagar
@@ -191,6 +249,11 @@ export default function Payables() {
             </select>
           </label>
         </div>
+        <div className="filter-group">
+          <label className="filter-control"><span>Desde</span><input type="date" value={from} max={to || undefined} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Hasta</span><input type="date" value={to} min={from || undefined} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Orden</span><select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}><option value="oldest">Más antiguas primero</option><option value="newest">Más recientes primero</option></select></label>
+        </div>
         <div className="search-box">
           <Search size={16} />
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Buscar proveedor o descripción…" aria-label="Buscar cartera por pagar" />
@@ -222,17 +285,26 @@ export default function Payables() {
         record={paymentTarget}
       />
 
-      {detail && <PayableDocument detail={detail} open onClose={() => setDetail(null)} />}
+      <Modal open={Boolean(dueDateTarget)} onClose={() => setDueDateTarget(null)} title="Editar vencimiento" subtitle={dueDateTarget ? `Obligación de ${dueDateTarget.provider_name}` : ''}>
+        <form id="payable-due-date" className="stack-16" onSubmit={saveDueDate}>
+          <Field label="Nueva fecha de vencimiento" required><TextInput type="date" value={dueDateValue} onChange={(event) => setDueDateValue(event.target.value)} required /></Field>
+          <button type="submit" className="btn btn-primary">Guardar fecha</button>
+        </form>
+      </Modal>
+
+      {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="payable" record={detail} payment={editingPayment} />}
+      {detail && <PayableDocument detail={detail} open onClose={() => setDetail(null)} onEditPayment={setEditingPayment} onDeletePayment={deletePayment} />}
     </div>
   );
 }
 
-function PayableDocument({ detail, open, onClose }) {
+function PayableDocument({ detail, open, onClose, onEditPayment, onDeletePayment }) {
   const columns = [
     { key: 'payment_date', label: 'Fecha', render: (row) => formatDate(row.payment_date) },
     { key: 'method', label: 'Medio', render: (row) => methodLabel(row.method) },
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
-    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' }
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
+    { key: 'actions', label: 'Acciones', className: 'document-no-export', render: (row) => <div className="row-actions"><IconButton label="Editar pago" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar pago" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
@@ -276,6 +348,25 @@ function PayableDocument({ detail, open, onClose }) {
           balance: formatCurrency(detail.balance)
         }]}
       />
+      {detail.product && (
+        <DocumentSection title="Detalle de la compra o movimiento">
+          <DocumentItems
+            columns={[
+              { key: 'product', label: 'Producto' },
+              { key: 'quantity', label: 'Cantidad', align: 'right' },
+              { key: 'unit_value', label: 'Valor unitario', align: 'right' },
+              { key: 'total', label: 'Total', align: 'right' }
+            ]}
+            rows={[{
+              id: detail.id,
+              product: detail.product.name,
+              quantity: `${formatNumber(detail.product.quantity)} ${detail.product.unit || 'unidades'}`,
+              unit_value: formatCurrency(detail.product.unit_value),
+              total: formatCurrency(Number(detail.product.quantity || 0) * Number(detail.product.unit_value || 0))
+            }]}
+          />
+        </DocumentSection>
+      )}
       <DocumentTotals
         items={[
           { label: 'Monto de la obligación', value: formatCurrency(detail.amount) },

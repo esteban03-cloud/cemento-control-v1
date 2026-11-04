@@ -182,6 +182,9 @@ test('create purchase updates stock and creates payable when credit', async () =
   assert.equal(response.status, 201, JSON.stringify(data));
   assert.match(data.data.doc_number, /^FC-\d+$/);
   assert.equal(data.data.total_cost, 10 * 22000 + 100000 + 20000);
+  assert.equal(data.data.invoice_total, 10 * 22000 + 100000);
+  assert.equal(data.data.paid_total, 50000 + 100000);
+  assert.equal(data.data.balance, 10 * 22000 - 50000);
   const stockAfter = Number((await api('/inventory')).data.products.find((item) => item.id === product.id).stock);
   assert.equal(stockAfter, stockBefore + 10);
   const payables = (await api('/payables?limit=200')).data.data.filter((item) => item.doc_number === data.data.doc_number);
@@ -289,4 +292,35 @@ test('export PDF and backup JSON endpoints return valid binaries', async () => {
   const backup = await backupResponse.json();
   assert.equal(backup.app, 'CementoControl');
   assert.ok(Array.isArray(backup.tables.sales));
+});
+
+
+test('personal debt interest payments do not reduce outstanding principal', async () => {
+  const meta = (await api('/meta')).data;
+  const created = await api('/debts', {
+    method: 'POST',
+    body: {
+      creditor_name: 'Prestamista de prueba',
+      creditor_type: 'persona',
+      principal: 1000000,
+      monthly_interest_rate: 2,
+      term_months: 3,
+      start_date: meta.today,
+      first_payment_date: meta.today,
+      description: 'Prueba de interés personal'
+    }
+  });
+  assert.equal(created.response.status, 201, JSON.stringify(created.data));
+  const debt = created.data.data;
+  const interestInstallment = debt.installments.find((row) => row.kind === 'interes');
+  assert.ok(interestInstallment);
+  const payment = await api(`/debts/${debt.id}/installments/${interestInstallment.id}/pay`, {
+    method: 'POST',
+    body: { payment_date: meta.today, method: 'efectivo' }
+  });
+  assert.equal(payment.response.status, 201, JSON.stringify(payment.data));
+  const listed = await api('/debts');
+  const row = listed.data.data.find((item) => item.id === debt.id);
+  assert.equal(row.pending_balance, 1000000);
+  assert.equal(row.total_paid, 20000);
 });

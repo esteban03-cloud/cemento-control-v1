@@ -8,6 +8,8 @@ import {
   Landmark,
   Loader2,
   Plus,
+  Pencil,
+  Trash2,
   Search,
   UserRound
 } from 'lucide-react';
@@ -17,6 +19,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { PageHeader, DataTable, Pagination, SummaryTile, StatusBadge, ErrorPanel, DownloadMenu, IconButton, Avatar } from '../components/DataDisplay.jsx';
 import { DocumentModal, DocumentFacts, DocumentItems, DocumentTotals, DocumentSection, DocumentPayments } from '../components/DocumentModal.jsx';
 import PaymentModal from '../components/PaymentModal.jsx';
+import { Modal } from '../components/Modal.jsx';
+import { Field, TextInput } from '../components/Forms.jsx';
 import {
   classNames,
   formatCurrency,
@@ -40,6 +44,9 @@ export default function Receivables() {
   const [meta, setMeta] = useState(null);
   const [status, setStatus] = useState('todas');
   const [customerId, setCustomerId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('oldest');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -48,7 +55,11 @@ export default function Receivables() {
   const [error, setError] = useState(null);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
+  const [dueDateTarget, setDueDateTarget] = useState(null);
+  const [dueDateValue, setDueDateValue] = useState('');
   const canPay = hasPermission('cxc:pay');
+  const canDelete = hasPermission('ventas:write');
   const canExport = hasPermission('reportes:export');
 
   useEffect(() => {
@@ -64,7 +75,9 @@ export default function Receivables() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ status, page: String(page), limit: '20' });
+      const params = new URLSearchParams({ status, page: String(page), limit: '20', sort });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
       if (customerId) params.set('customer_id', customerId);
       if (search) params.set('search', search);
       setData(await api.get(`/receivables?${params.toString()}`));
@@ -75,7 +88,7 @@ export default function Receivables() {
     }
   };
 
-  useEffect(() => { load(); }, [status, customerId, search, page]);
+  useEffect(() => { load(); }, [status, customerId, search, page, from, to, sort]);
 
   const openDetail = async (row) => {
     try {
@@ -84,6 +97,49 @@ export default function Receivables() {
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  const refreshDetail = async () => {
+    if (!detail) return;
+    try {
+      const response = await api.get(`/receivables/${detail.id}/payments`);
+      setDetail(response.data);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayment = async (payment) => {
+    if (!detail || !window.confirm('¿Eliminar este abono? El saldo y los movimientos de caja se recalcularán.')) return;
+    try {
+      await api.delete(`/receivables/${detail.id}/payments/${payment.id}`);
+      toast.success('Abono eliminado y caja recalculada.');
+      await refreshDetail();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const saveDueDate = async (event) => {
+    event.preventDefault();
+    if (!dueDateTarget || !dueDateValue) return;
+    try {
+      await api.put(`/receivables/${dueDateTarget.id}`, { due_date: dueDateValue });
+      toast.success('Fecha de vencimiento actualizada.');
+      setDueDateTarget(null);
+      await load(true);
+      if (detail?.id === dueDateTarget.id) {
+        const response = await api.get(`/receivables/${detail.id}/payments`);
+        setDetail(response.data);
+      }
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deleteReceivable = async (row) => {
+    if (!window.confirm(`¿Eliminar la factura ${row.invoice_number}? También se revertirán el inventario, los abonos y los movimientos de caja relacionados.`)) return;
+    try {
+      await api.delete(`/receivables/${row.id}`);
+      toast.success('Venta y cuenta por cobrar eliminadas.');
+      if (detail?.id === row.id) setDetail(null);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [
@@ -132,6 +188,8 @@ export default function Receivables() {
       render: (row) => (
         <div className="row-actions">
           <IconButton label="Ver cuenta" icon={Eye} onClick={() => openDetail(row)} />
+          {canPay && <IconButton label="Editar vencimiento" icon={Pencil} onClick={() => { setDueDateTarget(row); setDueDateValue(row.due_date); }} />}
+          {canDelete && <IconButton label="Eliminar factura y cuenta" icon={Trash2} variant="danger" onClick={() => deleteReceivable(row)} />}
           {canPay && row.balance > 0 && (
             <button type="button" className="btn btn-small btn-secondary" onClick={() => setPaymentTarget(row)}>
               <Plus size={14} /> Abonar
@@ -182,6 +240,11 @@ export default function Receivables() {
             </select>
           </label>
         </div>
+        <div className="filter-group">
+          <label className="filter-control"><span>Desde</span><input type="date" value={from} max={to || undefined} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Hasta</span><input type="date" value={to} min={from || undefined} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Orden</span><select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}><option value="oldest">Más antiguas primero</option><option value="newest">Más recientes primero</option></select></label>
+        </div>
         <div className="search-box">
           <Search size={16} />
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Buscar factura o cliente…" aria-label="Buscar cartera" />
@@ -216,18 +279,29 @@ export default function Receivables() {
         />
       )}
 
-      {detail && <ReceivableDocument detail={detail} open onClose={() => setDetail(null)} />}
+      <Modal open={Boolean(dueDateTarget)} onClose={() => setDueDateTarget(null)} title="Editar vencimiento" subtitle={dueDateTarget ? `Factura ${dueDateTarget.invoice_number} · ${dueDateTarget.customer_name}` : ''}>
+        <form id="receivable-due-date" className="stack-16" onSubmit={saveDueDate}>
+          <Field label="Nueva fecha de vencimiento" required><TextInput type="date" min={dueDateTarget?.delivery_date || undefined} value={dueDateValue} onChange={(event) => setDueDateValue(event.target.value)} required /></Field>
+          <button type="submit" className="btn btn-primary">Guardar fecha</button>
+        </form>
+      </Modal>
+
+      {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="receivable" record={detail} payment={editingPayment} gmfRate={meta?.fiscal?.gmfRate} />
+      )}
+
+      {detail && <ReceivableDocument detail={detail} open onClose={() => setDetail(null)} onEditPayment={setEditingPayment} onDeletePayment={deletePayment} />}
     </div>
   );
 }
 
-function ReceivableDocument({ detail, open, onClose }) {
+function ReceivableDocument({ detail, open, onClose, onEditPayment, onDeletePayment }) {
   const columns = [
     { key: 'payment_date', label: 'Fecha', render: (row) => formatDate(row.payment_date) },
     { key: 'method', label: 'Medio', render: (row) => methodLabel(row.method) },
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
     { key: 'fee', label: '4x1000', align: 'right', render: (row) => row.fee ? formatCurrency(row.fee) : '—' },
-    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' }
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
+    { key: 'actions', label: 'Acciones', className: 'document-no-export', render: (row) => <div className="row-actions"><IconButton label="Editar abono" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar abono" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
@@ -254,6 +328,23 @@ function ReceivableDocument({ detail, open, onClose }) {
           <p>Abonado: {formatCurrency(detail.paid)}</p>
         </div>
       </div>
+      <DocumentSection title="Detalle de la factura">
+        <DocumentItems
+          columns={[
+            { key: 'product', label: 'Producto' },
+            { key: 'quantity', label: 'Cantidad', align: 'right' },
+            { key: 'unit_price', label: 'Precio unitario', align: 'right' },
+            { key: 'subtotal', label: 'Subtotal', align: 'right' }
+          ]}
+          rows={[{
+            id: detail.sale_id,
+            product: detail.product_name,
+            quantity: `${formatNumber(detail.quantity)} ${detail.product_unit || 'unidades'}`,
+            unit_price: formatCurrency(detail.unit_price),
+            subtotal: formatCurrency(detail.subtotal)
+          }]}
+        />
+      </DocumentSection>
       <DocumentTotals
         items={[
           { label: 'Valor factura', value: formatCurrency(detail.amount) },

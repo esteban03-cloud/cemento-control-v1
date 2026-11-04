@@ -351,7 +351,7 @@ function PurchaseDocument({ detail, open, onClose }) {
             { label: 'Costo producto', value: formatCurrency(Number(detail.quantity) * Number(detail.unit_cost)) },
             ...(detail.freight_payer !== 'proveedor' && Number(detail.freight_value) > 0 ? [{ label: 'Flete', value: formatCurrency(detail.freight_value) }] : []),
             { label: 'Total factura de compra', value: formatCurrency(Number(detail.quantity) * Number(detail.unit_cost) + (detail.freight_payer !== 'proveedor' ? Number(detail.freight_value || 0) : 0)), strong: true },
-            { label: 'Abono realizado', value: formatCurrency(Number(detail.total_paid_at_creation || 0) + Number(detail.credit_paid || 0)), strong: true, tone: 'green' },
+            { label: 'Abono realizado', value: formatCurrency(Number(detail.initial_payment || 0) + Number(detail.freight_advance || 0) + Number(detail.credit_paid || 0)), strong: true, tone: 'green' },
             { label: 'Saldo pendiente', value: formatCurrency(detail.balance), strong: true, tone: detail.balance > 0 ? 'warn' : 'green' }
           ]}
           note="Factura de compra de producto. El descargue se gestiona por aparte como cuenta por pagar de logística."

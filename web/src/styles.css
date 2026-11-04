@@ -3218,3 +3218,7 @@ code {
   .modal-content { padding: 0; overflow: visible; }
   body { background: #fff; }
 }
+
+
+/* Las acciones de administración solo se muestran en pantalla, no en el comprobante descargado. */
+.document-export-mode .document-no-export { display: none !important; }

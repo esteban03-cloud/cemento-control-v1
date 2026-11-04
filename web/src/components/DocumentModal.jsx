@@ -24,24 +24,53 @@ export function DocumentModal({
   const [exporting, setExporting] = useState(null);
 
   const capture = async () => {
-    if (!sheetRef.current) return null;
-    await document.fonts?.ready;
-    const node = sheetRef.current.cloneNode(true);
-    node.style.width = '800px';
-    node.style.maxWidth = '800px';
-    node.style.minHeight = '0';
-    node.style.margin = '0';
-    node.style.padding = '36px 40px';
-    node.style.position = 'fixed';
-    node.style.left = '-9999px';
-    node.style.top = '0';
-    node.style.zIndex = '99999';
-    node.style.pointerEvents = 'none';
-    node.style.boxShadow = 'none';
-    node.style.transform = 'none';
-    node.style.backgroundColor = '#ffffff';
+    const source = sheetRef.current;
+    if (!source) return null;
+
+    // Espera las fuentes y las imágenes antes de medir el documento.
+    if (document.fonts?.ready) await document.fonts.ready;
+    await Promise.all(Array.from(source.querySelectorAll('img')).map(async (img) => {
+      if (img.complete) return;
+      try { await img.decode(); } catch { /* La imagen no debe bloquear la exportación. */ }
+    }));
+
+    const node = source.cloneNode(true);
+    const copyComputedStyles = (original, clone) => {
+      const computed = window.getComputedStyle(original);
+      for (const property of computed) {
+        clone.style.setProperty(property, computed.getPropertyValue(property), computed.getPropertyPriority(property));
+      }
+      Array.from(original.children).forEach((child, index) => {
+        const clonedChild = clone.children[index];
+        if (clonedChild) copyComputedStyles(child, clonedChild);
+      });
+    };
+    copyComputedStyles(source, node);
+
+    // El documento se renderiza fuera del modal para evitar desplazamientos
+    // causados por transformaciones, scroll y contenedores con overflow.
+    Object.assign(node.style, {
+      width: '800px',
+      minWidth: '800px',
+      maxWidth: '800px',
+      minHeight: '0',
+      margin: '0',
+      padding: '36px 40px',
+      position: 'fixed',
+      left: '-10000px',
+      top: '0',
+      zIndex: '-1',
+      pointerEvents: 'none',
+      boxShadow: 'none',
+      transform: 'none',
+      backgroundColor: '#ffffff',
+      boxSizing: 'border-box',
+      letterSpacing: 'normal',
+      fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif'
+    });
     node.classList.add('document-export-mode');
     document.body.appendChild(node);
+
     try {
       const { default: html2canvas } = await import('html2canvas');
       const canvas = await html2canvas(node, {
@@ -51,15 +80,20 @@ export function DocumentModal({
         logging: false,
         width: 800,
         windowWidth: 1000,
+        windowHeight: Math.max(1200, node.scrollHeight + 100),
         scrollX: 0,
         scrollY: 0,
-        letterRendering: true,
+        removeContainer: true,
         onclone: (clonedDoc) => {
           const exportNode = clonedDoc.querySelector('.document-export-mode');
-          if (exportNode) {
-            exportNode.style.letterSpacing = 'normal';
-            exportNode.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
-          }
+          if (!exportNode) return;
+          exportNode.style.left = '0';
+          exportNode.style.top = '0';
+          exportNode.style.zIndex = 'auto';
+          exportNode.style.transform = 'none';
+          exportNode.style.letterSpacing = 'normal';
+          exportNode.style.wordSpacing = 'normal';
+          exportNode.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
         }
       });
       return canvas;
@@ -199,13 +233,13 @@ export function DocumentItems({ columns = [], rows = [], totalRow }) {
     <div className="document-table-wrap">
       <table className="document-table">
         <thead>
-          <tr>{columns.map((column) => <th key={column.key} className={column.align ? `align-${column.align}` : ''}>{column.label}</th>)}</tr>
+          <tr>{columns.map((column) => <th key={column.key} className={classNames(column.className, column.align ? `align-${column.align}` : '')}>{column.label}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id || index}>
               {columns.map((column) => (
-                <td key={column.key} className={column.align ? `align-${column.align}` : ''}>
+                <td key={column.key} className={classNames(column.className, column.align ? `align-${column.align}` : '')}>
                   {column.render ? column.render(row) : row[column.key]}
                 </td>
               ))}
