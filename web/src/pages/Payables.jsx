@@ -46,6 +46,9 @@ export default function Payables() {
   const toast = useToast();
   const [status, setStatus] = useState('todas');
   const [concept, setConcept] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('oldest');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -66,7 +69,9 @@ export default function Payables() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ status, page: String(page), limit: '20' });
+      const params = new URLSearchParams({ status, page: String(page), limit: '20', sort });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
       if (concept) params.set('concept', concept);
       if (search) params.set('search', search);
       setData(await api.get(`/payables?${params.toString()}`));
@@ -77,7 +82,7 @@ export default function Payables() {
     }
   };
 
-  useEffect(() => { load(); }, [status, concept, search, page]);
+  useEffect(() => { load(); }, [status, concept, search, page, from, to, sort]);
 
   const openDetail = async (row) => {
     try {
@@ -191,6 +196,11 @@ export default function Payables() {
             </select>
           </label>
         </div>
+        <div className="filter-group">
+          <label className="filter-control"><span>Desde</span><input type="date" value={from} max={to || undefined} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Hasta</span><input type="date" value={to} min={from || undefined} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Orden</span><select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}><option value="oldest">Más antiguas primero</option><option value="newest">Más recientes primero</option></select></label>
+        </div>
         <div className="search-box">
           <Search size={16} />
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Buscar proveedor o descripción…" aria-label="Buscar cartera por pagar" />
@@ -276,6 +286,25 @@ function PayableDocument({ detail, open, onClose }) {
           balance: formatCurrency(detail.balance)
         }]}
       />
+      {detail.product && (
+        <DocumentSection title="Detalle de la compra o movimiento">
+          <DocumentItems
+            columns={[
+              { key: 'product', label: 'Producto' },
+              { key: 'quantity', label: 'Cantidad', align: 'right' },
+              { key: 'unit_value', label: 'Valor unitario', align: 'right' },
+              { key: 'total', label: 'Total', align: 'right' }
+            ]}
+            rows={[{
+              id: detail.id,
+              product: detail.product.name,
+              quantity: `${formatNumber(detail.product.quantity)} ${detail.product.unit || 'unidades'}`,
+              unit_value: formatCurrency(detail.product.unit_value),
+              total: formatCurrency(Number(detail.product.quantity || 0) * Number(detail.product.unit_value || 0))
+            }]}
+          />
+        </DocumentSection>
+      )}
       <DocumentTotals
         items={[
           { label: 'Monto de la obligación', value: formatCurrency(detail.amount) },
