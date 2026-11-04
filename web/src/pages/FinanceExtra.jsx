@@ -112,7 +112,7 @@ export default function FinanceExtra({ mode }) {
     { key: 'paid', label: 'Devuelto', align: 'right', render: (row) => money(row.paid) },
     { key: 'balance', label: 'Pendiente', align: 'right', render: (row) => <strong>{money(row.balance)}</strong> },
     { key: 'status', label: 'Estado', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'actions', label: '', align: 'right', render: (row) => <div className="row-actions"><IconButton label="Ver comprobante" icon={Eye} onClick={() => openDetail(row)} />{canPay && row.balance > 0 && <button className="btn btn-small btn-secondary" onClick={() => { setPaymentTarget(row); setPaymentForm({ amount: String(row.balance), payment_date: todayISO(), method: 'efectivo', notes: '' }); }}>Registrar pago</button>}{canWrite && {canWrite && <IconButton label="Eliminar" icon={Trash2} variant="danger" onClick={() => remove(row)} />}}</div> }
+    { key: 'actions', label: '', align: 'right', render: (row) => <div className="row-actions"><IconButton label="Ver comprobante" icon={Eye} onClick={() => openDetail(row)} />{canPay && row.balance > 0 && <button className="btn btn-small btn-secondary" onClick={() => { setPaymentTarget(row); setPaymentForm({ amount: String(row.balance), payment_date: todayISO(), method: 'efectivo', notes: '' }); }}>Registrar pago</button>}{canWrite && <IconButton label="Eliminar" icon={Trash2} variant="danger" onClick={() => remove(row)} />}</div> }
   ];
   const quoteColumns = [
     { key: 'quote_number', label: 'Cotización', render: (row) => <strong>{row.quote_number}</strong> },
