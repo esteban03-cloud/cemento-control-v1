@@ -265,7 +265,7 @@ function PayableDocument({ detail, open, onClose, onEditPayment, onDeletePayment
     { key: 'method', label: 'Medio', render: (row) => methodLabel(row.method) },
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
     { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
-    { key: 'actions', label: 'Acciones', render: (row) => <div className="row-actions"><IconButton label="Editar pago" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar pago" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
+    { key: 'actions', label: 'Acciones', className: 'document-no-export', render: (row) => <div className="row-actions"><IconButton label="Editar pago" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar pago" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
