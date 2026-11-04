@@ -480,8 +480,8 @@ export function getPurchaseById(id) {
     SELECT p.*, s.name AS supplier_name, s.nit AS supplier_nit, s.phone AS supplier_phone,
       pr.code AS product_code, pr.name AS product_name, pr.unit AS product_unit,
       u.full_name AS created_by_name,
-      COALESCE((SELECT SUM(amount) FROM accounts_payable WHERE purchase_id = p.id), 0) AS credit_total,
-      COALESCE((SELECT SUM(paid) FROM accounts_payable WHERE purchase_id = p.id), 0) AS credit_paid
+      COALESCE((SELECT SUM(amount) FROM accounts_payable WHERE purchase_id = p.id AND concept IN ('producto', 'flete')), 0) AS credit_total,
+      COALESCE((SELECT SUM(paid) FROM accounts_payable WHERE purchase_id = p.id AND concept IN ('producto', 'flete')), 0) AS credit_paid
     FROM purchases p
     JOIN suppliers s ON s.id = p.supplier_id
     JOIN products pr ON pr.id = p.product_id
