@@ -8,6 +8,8 @@ import {
   Landmark,
   Loader2,
   Plus,
+  Pencil,
+  Trash2,
   Search,
   UserRound
 } from 'lucide-react';
@@ -51,6 +53,7 @@ export default function Receivables() {
   const [error, setError] = useState(null);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
   const canPay = hasPermission('cxc:pay');
   const canExport = hasPermission('reportes:export');
 
@@ -89,6 +92,24 @@ export default function Receivables() {
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  const refreshDetail = async () => {
+    if (!detail) return;
+    try {
+      const response = await api.get(`/receivables/${detail.id}/payments`);
+      setDetail(response.data);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayment = async (payment) => {
+    if (!detail || !window.confirm('¿Eliminar este abono? El saldo y los movimientos de caja se recalcularán.')) return;
+    try {
+      await api.delete(`/receivables/${detail.id}/payments/${payment.id}`);
+      toast.success('Abono eliminado y caja recalculada.');
+      await refreshDetail();
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [
@@ -226,18 +247,22 @@ export default function Receivables() {
         />
       )}
 
-      {detail && <ReceivableDocument detail={detail} open onClose={() => setDetail(null)} />}
+      {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="receivable" record={detail} payment={editingPayment} gmfRate={meta?.fiscal?.gmfRate} />
+      )}
+
+      {detail && <ReceivableDocument detail={detail} open onClose={() => setDetail(null)} onEditPayment={setEditingPayment} onDeletePayment={deletePayment} />}
     </div>
   );
 }
 
-function ReceivableDocument({ detail, open, onClose }) {
+function ReceivableDocument({ detail, open, onClose, onEditPayment, onDeletePayment }) {
   const columns = [
     { key: 'payment_date', label: 'Fecha', render: (row) => formatDate(row.payment_date) },
     { key: 'method', label: 'Medio', render: (row) => methodLabel(row.method) },
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
     { key: 'fee', label: '4x1000', align: 'right', render: (row) => row.fee ? formatCurrency(row.fee) : '—' },
-    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' }
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
+    { key: 'actions', label: 'Acciones', render: (row) => <div className="row-actions"><IconButton label="Editar abono" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar abono" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
