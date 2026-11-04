@@ -17,6 +17,7 @@ import CostAllocation from './pages/CostAllocation.jsx';
 import Statements from './pages/Statements.jsx';
 import DataCenter from './pages/DataCenter.jsx';
 import Settings from './pages/Settings.jsx';
+import FinanceExtra from './pages/FinanceExtra.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 function ProtectedRoute() {
@@ -63,6 +64,9 @@ export default function App() {
         <Route path="ventas" element={<PermissionRoute permission="ventas:view"><Sales /></PermissionRoute>} />
         <Route path="compras" element={<PermissionRoute permission="compras:view"><Purchases /></PermissionRoute>} />
         <Route path="caja" element={<PermissionRoute permission="caja:view"><Cash /></PermissionRoute>} />
+        <Route path="prestamos" element={<PermissionRoute permission="prestamos:view"><FinanceExtra mode="loans" /></PermissionRoute>} />
+        <Route path="cotizaciones" element={<PermissionRoute permission="cotizaciones:view"><FinanceExtra mode="quotes" /></PermissionRoute>} />
+        <Route path="deudas" element={<PermissionRoute permission="deudas:view"><FinanceExtra mode="debts" /></PermissionRoute>} />
         <Route path="cxc" element={<PermissionRoute permission="cxc:view"><Receivables /></PermissionRoute>} />
         <Route path="cxp" element={<PermissionRoute permission="cxp:view"><Payables /></PermissionRoute>} />
         <Route path="cartera" element={<PermissionRoute permission="cartera:view"><Portfolio /></PermissionRoute>} />
