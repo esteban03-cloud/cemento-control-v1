@@ -1,0 +1,41 @@
+{
+  "name": "cemento-control",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de control de ventas, compras, inventario y finanzas para una distribuidora de cemento.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c yellow,cyan \"node --env-file-if-exists=.env --watch server/index.js\" \"vite --config web/vite.config.js\"",
+    "build": "vite build --config web/vite.config.js",
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "seed": "node --env-file-if-exists=.env server/seed.js --reset",
+    "test": "node --test tests/api.test.mjs",
+    "manual": "node scripts/build-manual.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "chart.js": "^4.4.7",
+    "compression": "^1.7.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "html2canvas": "1.4.1",
+    "jspdf": "^3.0.2",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.0.2",
+    "pdfkit": "^0.17.1",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "marked": "^18.1.2",
+    "playwright-core": "^1.49.1",
+    "vite": "^6.0.5"
+  }
+}

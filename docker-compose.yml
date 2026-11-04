@@ -1,0 +1,23 @@
+services:
+  cemento-control:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cemento-control
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      HOST: 0.0.0.0
+      DB_FILE: /app/data/cemento.db
+      COOKIE_SECURE: "false"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
