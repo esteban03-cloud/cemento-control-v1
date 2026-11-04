@@ -75,6 +75,9 @@ export default function Settings() {
   const [users, setUsers] = useState(null);
   const [userModal, setUserModal] = useState(null);
   const [backupStatus, setBackupStatus] = useState(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
 
   const hydrate = (nextConfig) => {
     setConfig(nextConfig);
@@ -239,6 +242,26 @@ export default function Settings() {
       setBackupStatus(await api.get('/backup/status'));
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const resetDatabase = async (event) => {
+    event.preventDefault();
+    if (!resetPassword) {
+      toast.warning('Ingresa la contraseña del administrador.');
+      return;
+    }
+    setResetBusy(true);
+    try {
+      const response = await api.post('/settings/reset-database', { password: resetPassword });
+      toast.success(response.message || 'La base de datos quedó en blanco. Se creó un respaldo preventivo.');
+      setResetOpen(false);
+      setResetPassword('');
+      await load();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setResetBusy(false);
     }
   };
 
@@ -489,10 +512,38 @@ export default function Settings() {
                   </div>
                 )) : <p className="muted">Todavía no hay copias. Puedes crear una manual desde Datos y respaldos.</p>}
               </div>
+              <div className="panel settings-panel">
+                <div className="settings-header">
+                  <div><span className="eyebrow">Restablecimiento</span><h2>Dejar la aplicación en blanco</h2><p>Elimina ventas, compras, inventario, cartera, caja, cotizaciones, préstamos, deudas y demás movimientos de operación. Conserva los usuarios, la configuración de empresa y los parámetros del sistema.</p></div>
+                  <button type="button" className="btn btn-danger" onClick={() => setResetOpen(true)}><Trash2 size={16} /> Restablecer datos</button>
+                </div>
+                <InlineNotice tone="warning">Antes de borrar, el sistema generará automáticamente una copia de seguridad descargable desde el historial. Esta acción no se puede deshacer desde la aplicación.</InlineNotice>
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      <Modal
+        open={resetOpen}
+        onClose={() => { if (!resetBusy) { setResetOpen(false); setResetPassword(''); } }}
+        title="Confirmar restablecimiento"
+        subtitle="Esta acción eliminará los registros operativos. Se requiere la contraseña del administrador."
+        busy={resetBusy}
+        footer={(
+          <div className="row-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => { setResetOpen(false); setResetPassword(''); }} disabled={resetBusy}>Cancelar</button>
+            <button type="submit" form="reset-database-form" className="btn btn-danger" disabled={resetBusy}>{resetBusy ? 'Restableciendo…' : 'Eliminar todos los datos'}</button>
+          </div>
+        )}
+      >
+        <form id="reset-database-form" className="stack-16" onSubmit={resetDatabase}>
+          <InlineNotice tone="danger">Se borrarán los movimientos y registros operativos. Los usuarios y la configuración de empresa se conservarán.</InlineNotice>
+          <Field label="Contraseña del administrador" required>
+            <TextInput type="password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} autoComplete="current-password" required />
+          </Field>
+        </form>
+      </Modal>
 
       <PartnerModal
         open={Boolean(partnerModal)}
