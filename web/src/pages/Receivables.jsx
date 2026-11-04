@@ -262,7 +262,7 @@ function ReceivableDocument({ detail, open, onClose, onEditPayment, onDeletePaym
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
     { key: 'fee', label: '4x1000', align: 'right', render: (row) => row.fee ? formatCurrency(row.fee) : '—' },
     { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
-    { key: 'actions', label: 'Acciones', render: (row) => <div className="row-actions"><IconButton label="Editar abono" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar abono" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
+    { key: 'actions', label: 'Acciones', className: 'document-no-export', render: (row) => <div className="row-actions"><IconButton label="Editar abono" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar abono" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
