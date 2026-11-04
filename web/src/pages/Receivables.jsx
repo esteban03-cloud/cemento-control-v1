@@ -40,6 +40,9 @@ export default function Receivables() {
   const [meta, setMeta] = useState(null);
   const [status, setStatus] = useState('todas');
   const [customerId, setCustomerId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('oldest');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -64,7 +67,9 @@ export default function Receivables() {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ status, page: String(page), limit: '20' });
+      const params = new URLSearchParams({ status, page: String(page), limit: '20', sort });
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
       if (customerId) params.set('customer_id', customerId);
       if (search) params.set('search', search);
       setData(await api.get(`/receivables?${params.toString()}`));
@@ -75,7 +80,7 @@ export default function Receivables() {
     }
   };
 
-  useEffect(() => { load(); }, [status, customerId, search, page]);
+  useEffect(() => { load(); }, [status, customerId, search, page, from, to, sort]);
 
   const openDetail = async (row) => {
     try {
@@ -182,6 +187,11 @@ export default function Receivables() {
             </select>
           </label>
         </div>
+        <div className="filter-group">
+          <label className="filter-control"><span>Desde</span><input type="date" value={from} max={to || undefined} onChange={(event) => { setFrom(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Hasta</span><input type="date" value={to} min={from || undefined} onChange={(event) => { setTo(event.target.value); setPage(1); }} /></label>
+          <label className="filter-control"><span>Orden</span><select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }}><option value="oldest">Más antiguas primero</option><option value="newest">Más recientes primero</option></select></label>
+        </div>
         <div className="search-box">
           <Search size={16} />
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="Buscar factura o cliente…" aria-label="Buscar cartera" />
@@ -254,6 +264,23 @@ function ReceivableDocument({ detail, open, onClose }) {
           <p>Abonado: {formatCurrency(detail.paid)}</p>
         </div>
       </div>
+      <DocumentSection title="Detalle de la factura">
+        <DocumentItems
+          columns={[
+            { key: 'product', label: 'Producto' },
+            { key: 'quantity', label: 'Cantidad', align: 'right' },
+            { key: 'unit_price', label: 'Precio unitario', align: 'right' },
+            { key: 'subtotal', label: 'Subtotal', align: 'right' }
+          ]}
+          rows={[{
+            id: detail.sale_id,
+            product: detail.product_name,
+            quantity: `${formatNumber(detail.quantity)} ${detail.product_unit || 'unidades'}`,
+            unit_price: formatCurrency(detail.unit_price),
+            subtotal: formatCurrency(detail.subtotal)
+          }]}
+        />
+      </DocumentSection>
       <DocumentTotals
         items={[
           { label: 'Valor factura', value: formatCurrency(detail.amount) },
