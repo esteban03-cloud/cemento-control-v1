@@ -18,6 +18,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { PageHeader, DataTable, Pagination, SummaryTile, StatusBadge, ErrorPanel, DownloadMenu, IconButton, Avatar } from '../components/DataDisplay.jsx';
 import { DocumentModal, DocumentItems, DocumentTotals, DocumentPayments } from '../components/DocumentModal.jsx';
 import PaymentModal from '../components/PaymentModal.jsx';
+import { Modal } from '../components/Modal.jsx';
+import { Field, TextInput } from '../components/Forms.jsx';
 import {
   classNames,
   conceptLabel,
@@ -60,7 +62,10 @@ export default function Payables() {
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null);
+  const [dueDateTarget, setDueDateTarget] = useState(null);
+  const [dueDateValue, setDueDateValue] = useState('');
   const canPay = hasPermission('cxp:pay');
+  const canDelete = hasPermission('compras:write');
   const canExport = hasPermission('reportes:export');
 
   useEffect(() => {
@@ -111,6 +116,31 @@ export default function Payables() {
       await api.delete(`/payables/${detail.id}/payments/${payment.id}`);
       toast.success('Pago eliminado y caja recalculada.');
       await refreshDetail();
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const saveDueDate = async (event) => {
+    event.preventDefault();
+    if (!dueDateTarget || !dueDateValue) return;
+    try {
+      await api.put(`/payables/${dueDateTarget.id}`, { due_date: dueDateValue });
+      toast.success('Fecha de vencimiento actualizada.');
+      setDueDateTarget(null);
+      await load(true);
+      if (detail?.id === dueDateTarget.id) {
+        const response = await api.get(`/payables/${detail.id}/payments`);
+        setDetail(response.data);
+      }
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayable = async (row) => {
+    if (!window.confirm(`¿Eliminar esta obligación de ${row.provider_name}? Se revertirán los pagos y movimientos relacionados si el registro proviene de una compra.`)) return;
+    try {
+      await api.delete(`/payables/${row.id}`);
+      toast.success('Cuenta por pagar eliminada.');
+      if (detail?.id === row.id) setDetail(null);
+      await load(true);
     } catch (err) { toast.error(err.message); }
   };
 
@@ -168,6 +198,8 @@ export default function Payables() {
       render: (row) => (
         <div className="row-actions">
           <IconButton label="Ver obligación" icon={Eye} onClick={() => openDetail(row)} />
+          {canPay && <IconButton label="Editar vencimiento" icon={Pencil} onClick={() => { setDueDateTarget(row); setDueDateValue(row.due_date); }} />}
+          {canDelete && <IconButton label="Eliminar obligación" icon={Trash2} variant="danger" onClick={() => deletePayable(row)} />}
           {canPay && row.balance > 0 && (
             <button type="button" className="btn btn-small btn-secondary" onClick={() => setPaymentTarget(row)}>
               <Plus size={14} /> Pagar
@@ -252,6 +284,13 @@ export default function Payables() {
         type="payable"
         record={paymentTarget}
       />
+
+      <Modal open={Boolean(dueDateTarget)} onClose={() => setDueDateTarget(null)} title="Editar vencimiento" subtitle={dueDateTarget ? `Obligación de ${dueDateTarget.provider_name}` : ''}>
+        <form id="payable-due-date" className="stack-16" onSubmit={saveDueDate}>
+          <Field label="Nueva fecha de vencimiento" required><TextInput type="date" value={dueDateValue} onChange={(event) => setDueDateValue(event.target.value)} required /></Field>
+          <button type="submit" className="btn btn-primary">Guardar fecha</button>
+        </form>
+      </Modal>
 
       {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="payable" record={detail} payment={editingPayment} />}
       {detail && <PayableDocument detail={detail} open onClose={() => setDetail(null)} onEditPayment={setEditingPayment} onDeletePayment={deletePayment} />}
