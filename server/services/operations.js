@@ -489,8 +489,12 @@ export function getPurchaseById(id) {
     WHERE p.id = ?
   `).get(id);
   if (!row) return null;
-  const paid = money(row.total_paid_at_creation + row.credit_paid);
-  const balance = money(row.total_cost - paid);
+  const invoiceTotal = money(
+    Number(row.quantity) * Number(row.unit_cost)
+    + (row.freight_payer !== 'proveedor' ? Number(row.freight_value || 0) : 0)
+  );
+  const paid = money(Number(row.initial_payment || 0) + Number(row.freight_advance || 0) + Number(row.credit_paid || 0));
+  const balance = money(invoiceTotal - paid);
   const today = todayBogota();
   let status = 'Pagada';
   if (balance > 0.5) {
@@ -498,6 +502,7 @@ export function getPurchaseById(id) {
   }
   return {
     ...row,
+    invoice_total: invoiceTotal,
     paid_total: paid,
     balance,
     status,
