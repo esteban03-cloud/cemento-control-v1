@@ -17,10 +17,12 @@ export default function PaymentModal({
   onSaved,
   type = 'receivable',
   record,
+  payment = null,
   gmfRate = 0.004
 }) {
   const toast = useToast();
   const isReceivable = type === 'receivable';
+  const isEditing = Boolean(payment?.id);
   const [form, setForm] = useState({ amount: '', payment_date: todayISO(), method: 'efectivo', notes: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -28,19 +30,25 @@ export default function PaymentModal({
   const balance = Number(record?.balance) || 0;
   const amount = Number(form.amount) || 0;
   const fee = isReceivable && form.method === 'bancos' ? Math.round(amount * Number(gmfRate || 0)) : 0;
+  const allowedAmount = balance + (isEditing ? Number(payment.amount || 0) : 0);
 
   useEffect(() => {
     if (!open) return;
-    setForm({
+    setForm(isEditing ? {
+      amount: String(payment.amount || ''),
+      payment_date: payment.payment_date || todayISO(),
+      method: payment.method || 'efectivo',
+      notes: payment.notes || ''
+    } : {
       amount: balance ? String(balance) : '',
       payment_date: todayISO(),
       method: 'efectivo',
       notes: ''
     });
     setError('');
-  }, [open, record?.id, balance]);
+  }, [open, record?.id, balance, payment?.id]);
 
-  const title = useMemo(() => (isReceivable ? 'Registrar cobro' : 'Registrar pago'), [isReceivable]);
+  const title = useMemo(() => isEditing ? (isReceivable ? 'Editar cobro' : 'Editar pago') : (isReceivable ? 'Registrar cobro' : 'Registrar pago'), [isReceivable, isEditing]);
   const party = isReceivable ? record?.customer_name : record?.provider_name;
   const document = isReceivable ? record?.invoice_number : (record?.doc_number || record?.invoice_number || record?.description);
   const endpoint = isReceivable ? `/receivables/${record?.id}/payments` : `/payables/${record?.id}/payments`;
@@ -52,19 +60,16 @@ export default function PaymentModal({
       setError('Ingresa un valor mayor que cero.');
       return;
     }
-    if (amount > balance + 0.5) {
+    if (amount > allowedAmount + 0.5) {
       setError(`El valor no puede superar el saldo pendiente de ${formatCurrency(balance)}.`);
       return;
     }
     setSaving(true);
     try {
-      await api.post(endpoint, {
-        amount,
-        payment_date: form.payment_date,
-        method: form.method,
-        notes: form.notes
-      });
-      toast.success(isReceivable ? 'Cobro registrado correctamente.' : 'Pago registrado correctamente.');
+      const payload = { amount, payment_date: form.payment_date, method: form.method, notes: form.notes };
+      if (isEditing) await api.put(`${endpoint}/${payment.id}`, payload);
+      else await api.post(endpoint, payload);
+      toast.success(isEditing ? 'Movimiento actualizado y caja recalculada.' : (isReceivable ? 'Cobro registrado correctamente.' : 'Pago registrado correctamente.'));
       onSaved?.();
       onClose();
     } catch (err) {
@@ -81,14 +86,14 @@ export default function PaymentModal({
       open={open}
       onClose={onClose}
       title={title}
-      subtitle={isReceivable ? 'El abono se refleja en caja y reduce la cartera.' : 'El pago se descuenta de la caja y reduce la obligación.'}
+      subtitle={isEditing ? 'La caja o banco se actualizará con los datos corregidos.' : isReceivable ? 'El abono se refleja en caja y reduce la cartera.' : 'El pago se descuenta de la caja y reduce la obligación.'}
       size="sm"
       busy={saving}
       footer={(
         <>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button type="submit" form="payment-form" className="btn btn-primary" disabled={saving || balance <= 0}>
-            {saving ? <><Loader2 size={16} className="spin" /> Guardando…</> : <><Banknote size={16} /> {isReceivable ? 'Guardar cobro' : 'Guardar pago'}</>}
+          <button type="submit" form="payment-form" className="btn btn-primary" disabled={saving || (!isEditing && balance <= 0)}>
+            {saving ? <><Loader2 size={16} className="spin" /> Guardando…</> : <><Banknote size={16} /> {isEditing ? 'Guardar cambios' : isReceivable ? 'Guardar cobro' : 'Guardar pago'}</>}
           </button>
         </>
       )}
@@ -112,7 +117,7 @@ export default function PaymentModal({
             onChange={(event) => setForm({ ...form, amount: event.target.value })}
             placeholder="0"
             min="1"
-            max={balance}
+            max={allowedAmount}
             step="any"
             autoFocus
           />
