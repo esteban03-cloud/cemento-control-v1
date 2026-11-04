@@ -7,6 +7,8 @@ import {
   Eye,
   Landmark,
   Plus,
+  Pencil,
+  Trash2,
   Search,
   Truck
 } from 'lucide-react';
@@ -57,6 +59,7 @@ export default function Payables() {
   const [error, setError] = useState(null);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [editingPayment, setEditingPayment] = useState(null);
   const canPay = hasPermission('cxp:pay');
   const canExport = hasPermission('reportes:export');
 
@@ -91,6 +94,24 @@ export default function Payables() {
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  const refreshDetail = async () => {
+    if (!detail) return;
+    try {
+      const response = await api.get(`/payables/${detail.id}/payments`);
+      setDetail(response.data);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deletePayment = async (payment) => {
+    if (!detail || !window.confirm('¿Eliminar este pago? El saldo y los movimientos de caja se recalcularán.')) return;
+    try {
+      await api.delete(`/payables/${detail.id}/payments/${payment.id}`);
+      toast.success('Pago eliminado y caja recalculada.');
+      await refreshDetail();
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [
@@ -232,17 +253,19 @@ export default function Payables() {
         record={paymentTarget}
       />
 
-      {detail && <PayableDocument detail={detail} open onClose={() => setDetail(null)} />}
+      {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="payable" record={detail} payment={editingPayment} />}
+      {detail && <PayableDocument detail={detail} open onClose={() => setDetail(null)} onEditPayment={setEditingPayment} onDeletePayment={deletePayment} />}
     </div>
   );
 }
 
-function PayableDocument({ detail, open, onClose }) {
+function PayableDocument({ detail, open, onClose, onEditPayment, onDeletePayment }) {
   const columns = [
     { key: 'payment_date', label: 'Fecha', render: (row) => formatDate(row.payment_date) },
     { key: 'method', label: 'Medio', render: (row) => methodLabel(row.method) },
     { key: 'amount', label: 'Valor', align: 'right', render: (row) => formatCurrency(row.amount) },
-    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' }
+    { key: 'notes', label: 'Notas', render: (row) => row.notes || '—' },
+    { key: 'actions', label: 'Acciones', render: (row) => <div className="row-actions"><IconButton label="Editar pago" icon={Pencil} onClick={() => onEditPayment?.(row)} /><IconButton label="Eliminar pago" icon={Trash2} variant="danger" onClick={() => onDeletePayment?.(row)} /></div> }
   ];
   return (
     <DocumentModal
