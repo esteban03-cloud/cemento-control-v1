@@ -290,3 +290,34 @@ test('export PDF and backup JSON endpoints return valid binaries', async () => {
   assert.equal(backup.app, 'CementoControl');
   assert.ok(Array.isArray(backup.tables.sales));
 });
+
+
+test('personal debt interest payments do not reduce outstanding principal', async () => {
+  const meta = (await api('/meta')).data;
+  const created = await api('/debts', {
+    method: 'POST',
+    body: {
+      creditor_name: 'Prestamista de prueba',
+      creditor_type: 'persona',
+      principal: 1000000,
+      monthly_interest_rate: 2,
+      term_months: 3,
+      start_date: meta.today,
+      first_payment_date: meta.today,
+      description: 'Prueba de interés personal'
+    }
+  });
+  assert.equal(created.response.status, 201, JSON.stringify(created.data));
+  const debt = created.data.data;
+  const interestInstallment = debt.installments.find((row) => row.kind === 'interes');
+  assert.ok(interestInstallment);
+  const payment = await api(`/debts/${debt.id}/installments/${interestInstallment.id}/pay`, {
+    method: 'POST',
+    body: { payment_date: meta.today, method: 'efectivo' }
+  });
+  assert.equal(payment.response.status, 201, JSON.stringify(payment.data));
+  const listed = await api('/debts');
+  const row = listed.data.data.find((item) => item.id === debt.id);
+  assert.equal(row.pending_balance, 1000000);
+  assert.equal(row.total_paid, 20000);
+});
