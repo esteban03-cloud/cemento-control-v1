@@ -19,6 +19,8 @@ import { useToast } from '../context/ToastContext.jsx';
 import { PageHeader, DataTable, Pagination, SummaryTile, StatusBadge, ErrorPanel, DownloadMenu, IconButton, Avatar } from '../components/DataDisplay.jsx';
 import { DocumentModal, DocumentFacts, DocumentItems, DocumentTotals, DocumentSection, DocumentPayments } from '../components/DocumentModal.jsx';
 import PaymentModal from '../components/PaymentModal.jsx';
+import { Modal } from '../components/Modal.jsx';
+import { Field, TextInput } from '../components/Forms.jsx';
 import {
   classNames,
   formatCurrency,
@@ -54,7 +56,10 @@ export default function Receivables() {
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [detail, setDetail] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null);
+  const [dueDateTarget, setDueDateTarget] = useState(null);
+  const [dueDateValue, setDueDateValue] = useState('');
   const canPay = hasPermission('cxc:pay');
+  const canDelete = hasPermission('ventas:write');
   const canExport = hasPermission('reportes:export');
 
   useEffect(() => {
@@ -112,6 +117,31 @@ export default function Receivables() {
     } catch (err) { toast.error(err.message); }
   };
 
+  const saveDueDate = async (event) => {
+    event.preventDefault();
+    if (!dueDateTarget || !dueDateValue) return;
+    try {
+      await api.put(`/receivables/${dueDateTarget.id}`, { due_date: dueDateValue });
+      toast.success('Fecha de vencimiento actualizada.');
+      setDueDateTarget(null);
+      await load(true);
+      if (detail?.id === dueDateTarget.id) {
+        const response = await api.get(`/receivables/${detail.id}/payments`);
+        setDetail(response.data);
+      }
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const deleteReceivable = async (row) => {
+    if (!window.confirm(`¿Eliminar la factura ${row.invoice_number}? También se revertirán el inventario, los abonos y los movimientos de caja relacionados.`)) return;
+    try {
+      await api.delete(`/receivables/${row.id}`);
+      toast.success('Venta y cuenta por cobrar eliminadas.');
+      if (detail?.id === row.id) setDetail(null);
+      await load(true);
+    } catch (err) { toast.error(err.message); }
+  };
+
   const columns = [
     {
       key: 'invoice_number',
@@ -158,6 +188,8 @@ export default function Receivables() {
       render: (row) => (
         <div className="row-actions">
           <IconButton label="Ver cuenta" icon={Eye} onClick={() => openDetail(row)} />
+          {canPay && <IconButton label="Editar vencimiento" icon={Pencil} onClick={() => { setDueDateTarget(row); setDueDateValue(row.due_date); }} />}
+          {canDelete && <IconButton label="Eliminar factura y cuenta" icon={Trash2} variant="danger" onClick={() => deleteReceivable(row)} />}
           {canPay && row.balance > 0 && (
             <button type="button" className="btn btn-small btn-secondary" onClick={() => setPaymentTarget(row)}>
               <Plus size={14} /> Abonar
@@ -246,6 +278,13 @@ export default function Receivables() {
           gmfRate={meta.fiscal?.gmfRate}
         />
       )}
+
+      <Modal open={Boolean(dueDateTarget)} onClose={() => setDueDateTarget(null)} title="Editar vencimiento" subtitle={dueDateTarget ? `Factura ${dueDateTarget.invoice_number} · ${dueDateTarget.customer_name}` : ''}>
+        <form id="receivable-due-date" className="stack-16" onSubmit={saveDueDate}>
+          <Field label="Nueva fecha de vencimiento" required><TextInput type="date" min={dueDateTarget?.delivery_date || undefined} value={dueDateValue} onChange={(event) => setDueDateValue(event.target.value)} required /></Field>
+          <button type="submit" className="btn btn-primary">Guardar fecha</button>
+        </form>
+      </Modal>
 
       {detail && editingPayment && <PaymentModal open onClose={() => setEditingPayment(null)} onSaved={refreshDetail} type="receivable" record={detail} payment={editingPayment} gmfRate={meta?.fiscal?.gmfRate} />
       )}
