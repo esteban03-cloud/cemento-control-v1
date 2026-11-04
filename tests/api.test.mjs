@@ -182,6 +182,9 @@ test('create purchase updates stock and creates payable when credit', async () =
   assert.equal(response.status, 201, JSON.stringify(data));
   assert.match(data.data.doc_number, /^FC-\d+$/);
   assert.equal(data.data.total_cost, 10 * 22000 + 100000 + 20000);
+  assert.equal(data.data.invoice_total, 10 * 22000 + 100000);
+  assert.equal(data.data.paid_total, 50000 + 100000);
+  assert.equal(data.data.balance, 10 * 22000 - 50000);
   const stockAfter = Number((await api('/inventory')).data.products.find((item) => item.id === product.id).stock);
   assert.equal(stockAfter, stockBefore + 10);
   const payables = (await api('/payables?limit=200')).data.data.filter((item) => item.doc_number === data.data.doc_number);
